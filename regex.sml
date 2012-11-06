@@ -1,10 +1,12 @@
+structure Regex = struct
 datatype regex = 
          Star of regex
        | Union of regex * regex
        | Concat of regex * regex
-       | Class of char -> bool
+(*        | Class of char -> bool *)
        | Char of char
        | Epsilon
+
 datatype match =
          SOME of char list * char list * (unit -> match)
        | NONE
@@ -15,12 +17,12 @@ fun match (input : char list , Epsilon) = SOME ([], input, fn () => NONE)
         SOME ([c], rest, fn () => NONE)
     else
         NONE
-  | match ([], Class pred) = NONE
-  | match (c::rest, Class pred) =
-    if pred c then 
-        SOME ([c], rest, fn () => NONE)
-    else
-        NONE
+(*   | match ([], Class pred) = NONE *)
+(*   | match (c::rest, Class pred) = *)
+(*     if pred c then  *)
+(*         SOME ([c], rest, fn () => NONE) *)
+(*     else *)
+(*         NONE *)
   | match (input, Concat (t, u)) = 
     let 
         fun matchConcat thisM = 
@@ -56,19 +58,71 @@ fun match (input : char list , Epsilon) = SOME ([], input, fn () => NONE)
         fun matchStar stack mf =
             case mf () of
                 SOME (s, r, n) =>
-                matchStar (s, r, n) (fn () => match (r, t))
+                matchStar ((s, r, n)::stack) (fn () => match (r, t))
               | NONE =>
                 case stack of
                     [] => SOME ([], input, fn () => NONE)
                   | ((_, _, nf)::rest) =>
                     let val (s, r) = matchRest stack in
-                        (s, r, fn () => matchStar rest nf) end
+                        SOME (s, r, fn () => matchStar rest nf) end
     in
         matchStar [] (fn () => match (input, t))
     end
-    
-(* datatype  *)
 
+fun matchesFully (string, regex) =
+    let
+        fun loop rest = 
+            case rest () of
+                SOME (match, [], _) => true
+              | SOME (_, _, rest)   => loop rest
+              | NONE                => false
+    in
+        loop (fn () => match (String.explode string, regex))
+    end
+
+fun allMatches (string, regex) =
+    let
+        fun loop rest = 
+            case rest () of
+                SOME (match, _, rest) => String.implode match :: loop rest
+              | NONE                   => []
+    in
+        loop (fn () => match (String.explode string, regex))
+    end
+
+exception Parse of string
+fun parse string = 
+    let 
+        (* Used to construct a Concat tree node *)
+        val C = fn (Epsilon, b) => b
+                 | (a, b) => Concat (a, b)
+        fun p []         acc = ([], acc)
+          | p (#"("::cs) acc = 
+            (let 
+                val (rest, pr) = p cs Epsilon
+            in
+                case rest of 
+                    (#")"::cont) => p cont (C (acc, pr))
+                  | _ => raise (Parse "Unmatched left parenthesis")
+            end)
+          | p (cs as #")"::_) acc = (cs, acc)
+          | p (#"|"::cs)      acc = 
+            let 
+                val (rest, ur) = p cs Epsilon
+            in
+                (rest, Union (acc, ur))
+            end
+          | p (#"*"::cs)     Epsilon = raise Parse "I will not allow the klein star of epsilon!"
+          | p (#"*"::cs)     (Concat (prev, last)) = p cs (C (prev, Star last))
+          | p (#"*"::cs)     acc                   = p cs (Star acc)
+          | p (#"\\"::c::cs) acc                   = p cs
+          | p (c::cs)        acc                   = p cs (C (acc, Char c))
+        val (remains, result) = p (String.explode string) Epsilon
+    in
+        case remains of 
+            [] => result
+          | _ => raise Parse "Unmatched right parenthesis"
+    end
 
 (* Unit tests *)
 
@@ -97,3 +151,4 @@ local
     val SOME ([#"c"], [#"d"], f3) = f2 ()
     val NONE = f3 ()
 in ; end
+end
