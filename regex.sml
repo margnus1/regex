@@ -103,7 +103,7 @@ fun parse string =
             in
                 case rest of 
                     (#")"::cont) => p cont (C (acc, pr))
-                  | _ => raise (Parse "Unmatched left parenthesis")
+                  | _ => raise Parse "Unmatched left parenthesis"
             end)
           | p (cs as #")"::_) acc = (cs, acc)
           | p (#"|"::cs)      acc = 
@@ -112,10 +112,23 @@ fun parse string =
             in
                 (rest, Union (acc, ur))
             end
-          | p (#"*"::cs)     Epsilon = raise Parse "I will not allow the klein star of epsilon!"
+          | p (#"[":: #"]"::_) _   = raise Parse "Empty character classes are not allowed"
+          | p (#"["::c::cs)    acc = 
+            let 
+                fun inner (#"]"::cs)     acc = (cs, acc)
+                  | inner (#"\\"::c::cs) acc = inner cs (Union (acc, Char c))
+                  | inner (c::cs)        acc = inner cs (Union (acc, Char c))
+                  | inner []             _   = raise Parse "Unmatched left square bracket"
+                val (classRem, classRes) = inner cs (Char c)
+            in
+                p classRem (C (acc, classRes))
+            end
+          | p (#"]"::_)      _       = raise Parse "Unmatched right square bracket"
+          | p (#"*"::cs)     Epsilon = raise Parse "I will not allow the Kleene star of epsilon!"
           | p (#"*"::cs)     (Concat (prev, last)) = p cs (C (prev, Star last))
           | p (#"*"::cs)     acc                   = p cs (Star acc)
-          | p (#"\\"::c::cs) acc                   = p cs
+          | p (#"\\"::c::cs) acc                   = p cs (C (acc, Char c))
+          | p [#"\\"]        _ = raise Parse "You cannot end a regex with a single backslash"
           | p (c::cs)        acc                   = p cs (C (acc, Char c))
         val (remains, result) = p (String.explode string) Epsilon
     in
