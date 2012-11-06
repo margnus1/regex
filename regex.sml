@@ -1,11 +1,11 @@
 structure Regex = struct
 datatype regex = 
-         Star of regex
-       | Union of regex * regex
-       | Concat of regex * regex
-(*        | Class of char -> bool *)
-       | Char of char
-       | Epsilon
+       Star of regex
+     | Union of regex * regex
+     | Concat of regex * regex
+(*      | Class of char -> bool *)
+     | Char of char
+     | Epsilon
 
 datatype match =
          SOME of char list * char list * (unit -> match)
@@ -85,7 +85,7 @@ fun allMatches (string, regex) =
         fun loop rest = 
             case rest () of
                 SOME (match, _, rest) => String.implode match :: loop rest
-              | NONE                   => []
+              | NONE                  => []
     in
         loop (fn () => match (String.explode string, regex))
     end
@@ -93,17 +93,14 @@ fun allMatches (string, regex) =
 exception Parse of string
 fun parse string = 
     let 
-        (* Used to construct a Concat tree node *)
-        val C = fn (Epsilon, b) => b
-                 | (a, b) => Concat (a, b)
         fun p []         acc = ([], acc)
           | p (#"("::cs) acc = 
             (let 
                 val (rest, pr) = p cs Epsilon
             in
                 case rest of 
-                    (#")"::cont) => p cont (C (acc, pr))
-                  | _ => raise Parse "Unmatched left parenthesis"
+                    (#")"::cont) => p cont (Concat (acc, pr))
+                  | _            => raise Parse "Unmatched left parenthesis"
             end)
           | p (cs as #")"::_) acc = (cs, acc)
           | p (#"|"::cs)      acc = 
@@ -121,21 +118,41 @@ fun parse string =
                   | inner []             _   = raise Parse "Unmatched left square bracket"
                 val (classRem, classRes) = inner cs (Char c)
             in
-                p classRem (C (acc, classRes))
+                p classRem (Concat (acc, classRes))
             end
           | p (#"]"::_)      _       = raise Parse "Unmatched right square bracket"
+          | p (#"?"::cs)     Epsilon = raise Parse "I do not think you need to make epsilon optional"
+          | p (#"?"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (Epsilon, last)))
+          | p (#"+"::cs)     Epsilon = raise Parse "I will not allow the Kleene plus of epsilon!"
+          | p (#"+"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (last, Star last)))
+          | p (#"+"::cs)     acc                   = p cs (Union (acc, Star acc))
           | p (#"*"::cs)     Epsilon = raise Parse "I will not allow the Kleene star of epsilon!"
-          | p (#"*"::cs)     (Concat (prev, last)) = p cs (C (prev, Star last))
+          | p (#"*"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Star last))
           | p (#"*"::cs)     acc                   = p cs (Star acc)
-          | p (#"\\"::c::cs) acc                   = p cs (C (acc, Char c))
+          | p (#"\\"::c::cs) acc                   = p cs (Concat (acc, Char c))
           | p [#"\\"]        _ = raise Parse "You cannot end a regex with a single backslash"
-          | p (c::cs)        acc                   = p cs (C (acc, Char c))
+          | p (c::cs)        acc                   = p cs (Concat (acc, Char c))
         val (remains, result) = p (String.explode string) Epsilon
     in
         case remains of 
             [] => result
           | _ => raise Parse "Unmatched right parenthesis"
     end
+
+fun toString Epsilon = ""
+  | toString (Char   c)            = 
+    if CharVector.exists (fn e => e = c) "\\[]()+-*?" then
+        "\\" ^ Char.toString c
+    else Char.toString c
+  | toString (Concat (a, Star b))  = 
+    if a = b then
+        String.concat ["(", toString a, ")+"]
+    else
+        String.concat [toString a, toString (Star b)]
+  | toString (Concat (a,       b)) = toString a ^ toString b
+  | toString (Union  (Epsilon, b)) = String.concat ["(", toString b, ")?"]
+  | toString (Union  (a,       b)) = String.concat ["(", toString a, "|", toString b, ")"]
+  | toString (Star   a)            = String.concat ["(", toString a, ")*"]
 
 (* Unit tests *)
 
