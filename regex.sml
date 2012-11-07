@@ -1,9 +1,11 @@
 structure Regex = struct
+local
+    val keyChars = "\\[]()+-*?"
+in
 datatype regex = 
        Star of regex
      | Union of regex * regex
      | Concat of regex * regex
-(*      | Class of char -> bool *)
      | Char of char
      | Epsilon
 
@@ -17,12 +19,6 @@ fun match (input : char list , Epsilon) = SOME ([], input, fn () => NONE)
         SOME ([c], rest, fn () => NONE)
     else
         NONE
-(*   | match ([], Class pred) = NONE *)
-(*   | match (c::rest, Class pred) = *)
-(*     if pred c then  *)
-(*         SOME ([c], rest, fn () => NONE) *)
-(*     else *)
-(*         NONE *)
   | match (input, Concat (t, u)) = 
     let 
         fun matchConcat thisM = 
@@ -90,6 +86,12 @@ fun allMatches (string, regex) =
         loop (fn () => match (String.explode string, regex))
     end
 
+fun simplify (Star a) = Star (simplify a)
+  | simplify (Union (a, b)) = Union (simplify a, simplify b)
+  | simplify (Concat (Epsilon, b)) = simplify b
+  | simplify (Concat (a, b)) = Concat (simplify a, simplify b)
+  | simplify a = a
+
 exception Parse of string
 fun parse string = 
     let 
@@ -120,28 +122,25 @@ fun parse string =
             in
                 p classRem (Concat (acc, classRes))
             end
-          | p (#"]"::_)      _       = raise Parse "Unmatched right square bracket"
-          | p (#"?"::cs)     Epsilon = raise Parse "I do not think you need to make epsilon optional"
-          | p (#"?"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (Epsilon, last)))
-          | p (#"+"::cs)     Epsilon = raise Parse "I will not allow the Kleene plus of epsilon!"
+          | p (#"?"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (last, Epsilon)))
           | p (#"+"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (last, Star last)))
-          | p (#"+"::cs)     acc                   = p cs (Union (acc, Star acc))
-          | p (#"*"::cs)     Epsilon = raise Parse "I will not allow the Kleene star of epsilon!"
           | p (#"*"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Star last))
-          | p (#"*"::cs)     acc                   = p cs (Star acc)
           | p (#"\\"::c::cs) acc                   = p cs (Concat (acc, Char c))
-          | p [#"\\"]        _ = raise Parse "You cannot end a regex with a single backslash"
-          | p (c::cs)        acc                   = p cs (Concat (acc, Char c))
+          | p (c::cs)        acc                   = 
+            if CharVector.exists (fn e => e = c) keyChars then
+                raise Parse ("Unexpected " ^ Char.toString c)
+            else
+                p cs (Concat (acc, Char c))
         val (remains, result) = p (String.explode string) Epsilon
     in
         case remains of 
-            [] => result
+            [] => simplify result
           | _ => raise Parse "Unmatched right parenthesis"
     end
 
 fun toString Epsilon = ""
   | toString (Char   c)            = 
-    if CharVector.exists (fn e => e = c) "\\[]()+-*?" then
+    if CharVector.exists (fn e => e = c) keyChars then
         "\\" ^ Char.toString c
     else Char.toString c
   | toString (Concat (a, Star b))  = 
@@ -181,4 +180,5 @@ local
     val SOME ([#"c"], [#"d"], f3) = f2 ()
     val NONE = f3 ()
 in ; end
+end
 end
