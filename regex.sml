@@ -1,6 +1,6 @@
 structure Regex = struct
 local
-    val keyChars = "\\[]()+-*?"
+    val keyChars = "\\[]()+*?"
 in
 datatype regex = 
        Star of regex
