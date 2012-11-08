@@ -27,13 +27,16 @@ fun fromRegex R.Epsilon  = (2, [Epsilon (1, 2)]) : nfa
   | fromRegex (R.Char c) = (2, [Regular (1, c, 2)])
   | fromRegex (R.Star r) = 
     let val (nos, trans) = fromRegex r 
-    in (nos, Epsilon (nos, 1) :: trans) end
+    in (nos + 1, Epsilon (1, nos + 1) ::
+                 Epsilon (nos, 1) ::
+                 Epsilon (nos, nos + 1) ::
+                 trans) end
   | fromRegex (R.Concat (r, s)) = 
     let 
         val (rNos, rTrans) = fromRegex r
-        val (nos, sTrans) = transpose rNos (fromRegex s)
+        val (nos, sTrans) = transpose (rNos-1) (fromRegex s)
     in
-        (nos, Epsilon (rNos, rNos+1) :: rTrans @ sTrans)
+        (nos, (* Epsilon (rNos, rNos+1) :: *) rTrans @ sTrans)
     end
   | fromRegex (R.Union (r, s)) = 
     let 
@@ -52,7 +55,7 @@ fun toDot (nos, trans) =
     let
         fun dotTrans (Regular (f, c, t)) = 
             String.concat [Int.toString f, " -> ", Int.toString t, 
-                           " [label=", Char.toString c, "]"]
+                           " [label=\"", Char.toString c, "\"]"]
           | dotTrans (Epsilon (f, t)) = 
                         String.concat [Int.toString f, " -> ", Int.toString t, 
                            " [label=\"&epsilon;\"]"]

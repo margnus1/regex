@@ -114,8 +114,15 @@ fun parse string =
           | p (#"[":: #"]"::_) _   = raise Parse "Empty character classes are not allowed"
           | p (#"["::c::cs)    acc = 
             let 
+                fun range f t acc =
+                    if f > t then acc else
+                    range (f+1) t (Union (acc, Char (chr f)))
                 fun inner (#"]"::cs)     acc = (cs, acc)
                   | inner (#"\\"::c::cs) acc = inner cs (Union (acc, Char c))
+                  | inner (#"-"::t::cs)  (Char f) = inner cs (range (ord f+1) (ord t) (Char f))
+                  | inner (#"-"::t::cs)  (Union (acc, Char f)) =
+                    inner cs (range (ord f) (ord t) acc)
+                  | inner [#"-"]         _ = raise Parse "You cannot end a class with a dash"
                   | inner (c::cs)        acc = inner cs (Union (acc, Char c))
                   | inner []             _   = raise Parse "Unmatched left square bracket"
                 val (classRem, classRes) = inner cs (Char c)
