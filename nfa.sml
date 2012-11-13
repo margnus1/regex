@@ -61,6 +61,7 @@ fun toDot (nos, trans) =
                            " [label=\"&epsilon;\"]"]
     in
         String.concatWith "\n" (["digraph D {",
+                                 "graph [rankdir=LR]",
                                  "node [shape=circle]",
                                  "\"\" [shape=none]",
                                  Int.toString nos ^ " [shape=doublecircle]",

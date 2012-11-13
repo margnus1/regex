@@ -130,7 +130,7 @@ fun parse string =
                 p classRem (Concat (acc, classRes))
             end
           | p (#"?"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (last, Epsilon)))
-          | p (#"+"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Union (last, Star last)))
+          | p (#"+"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Concat (last, Star last)))
           | p (#"*"::cs)     (Concat (prev, last)) = p cs (Concat (prev, Star last))
           | p (#"\\"::c::cs) acc                   = p cs (Concat (acc, Char c))
           | p (c::cs)        acc                   = 
