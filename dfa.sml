@@ -86,7 +86,7 @@ fun fromNFA (nos, trans) =
                 (* POST: a list of all input characters c that are accepted in state e *)
                 fun possibleInputs e = ListMergeSort.uniqueSort Char.compare (List.mapPartial
                                         (fn (f, c, _) => if Set.member (e, f)
-                                                         then SOME c else NONE) regulars)                    
+                                                         then SOME c else NONE) regulars)
                 
                 (* POST: (states of the DFA, transitions of the DFA) *)
                 fun loop ((pstates, ustates), trans) =
@@ -95,9 +95,12 @@ fun fromNFA (nos, trans) =
                       | SOME state => 
                         let
                             fun introduceTransition (c, (sp, trans)) =
-                                let val newState = eTrans state c in
-                                    (addToPair (newState, sp), 
-                                     SetTransMap.insert (trans, (state, c), newState)) end
+                                let
+                                    val newState = eTrans state c
+                                in
+                                    (addToPair (newState, sp),
+                                     SetTransMap.insert (trans, (state, c), newState))
+                                end
                             val ((npstates, nustates), ntrans) = 
                                 foldl introduceTransition ((pstates, ustates), trans) (possibleInputs state)
                         in
