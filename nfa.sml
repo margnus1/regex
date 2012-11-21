@@ -94,17 +94,7 @@ fun fromRegex regex =
                              (nos, swap nos rFin (Epsilon (sFin, rFin) :: trans)), 
                              false)
                           | (false, false) => 
-                            (false, 
-                             (* (if rFin > sFin then *)
-                             (*      (* We want to merge rFin with sFin and call it rFin-1. *) *)
-                             (*      (* Thus rFin => rFin - 1 *) *)
-                             (*      (*      sFin => rFin - 1 *) *)
-                             (*      (*      rFin - 1 => sFin *) *)
-                             (*      (* Alternitavely: merge rFin into sFin  *) *)
-                             (*      (*                swap  sFin with rFin-1 *) *)
-                             (*      swap sFin (rFin-1) o merge rFin sFin *)
-                             (*  else *)
-                             (*      ...)  *)
+                            (false,
                              (nos - 1, swap min (max-1) (merge max min trans)),
                              false)
                     end
@@ -137,11 +127,9 @@ fun fromRegex regex =
                         val (rTNos, rTTrans) = transpose 1 rN
                         val (sTNos, sTTrans) = transpose rTNos sN
                     in
-                        ((sTNos (* +1 *), Epsilon (1, 2) ::
-                                          Epsilon (1, rTNos + 1) ::
-                                          (* Epsilon (rTNos, sTNos + 1) :: *)
-                                          (* Epsilon (sTNos, sTNos + 1) :: *)
-                                          rTTrans @ sTTrans), 
+                        ((sTNos, Epsilon (1, 2) ::
+                                 Epsilon (1, rTNos + 1) ::
+                                 rTTrans @ sTTrans),
                          rTNos, sTNos)
                     end
             in
