@@ -54,6 +54,7 @@ fun simplify (nos, finals, trans) : dfa =
                                (t, singletonCharMap
                                        (c, Set.singleton f)))
                        (TransMap.listItemsi trans))
+        (* POST: Union_(s in stateSet) invTrans[s] *)
         fun incoming stateSet =
             foldl (CharMap.unionWith Set.union)
                   CharMap.empty
@@ -62,9 +63,11 @@ fun simplify (nos, finals, trans) : dfa =
                                                  else NONE)
                                    (IntBinaryMap.listItemsi
                                         invTrans))
+        (* Hopcroft's algorithm as described on Wikipedia *)
         fun loop (P, W) =
             case popSetSet W of
-                NONE => P
+                (* Kludge; P should not contain the empty set to begin with *)
+                NONE => SetSet.delete (P, Set.empty)
               | SOME (W, A) =>
                 let
                     fun perset ((Y, XiY, YmX), (P, W)) =
@@ -99,10 +102,11 @@ fun simplify (nos, finals, trans) : dfa =
         fun toDFA states =
             let
                 fun index ([],          _, acc) = acc
-                  | index ([e]::Es,     n, acc) = index (Es,     n+1, (e, n) :: acc)
                   | index ((e::es)::Es, n, acc) = index (es::Es, n,   (e, n) :: acc)
+                  | index ([]::Es,      n, acc) = index (Es,     n+1,           acc)
                 val indexes = foldl IntBinaryMap.insert' IntBinaryMap.empty
-                                    (index (map Set.listItems (SetSet.listItems states), 1, []))
+                                    (index (map Set.listItems (SetSet.listItems states),
+                                            1, []))
                 fun im 0 = 0
                   | im n = valOf (IntBinaryMap.find (indexes, n))
                 (* We assume that the initial state is given index 1 *)
@@ -255,7 +259,5 @@ fun toDot (_, final, trans) =
                                 @ map (fn n => Int.toString n ^ " [shape=doublecircle]") (Set.listItems final)
                                 @ map dotTrans (TransMap.listItemsi trans) @ ["}"])
     end
-
-
 end
 end
