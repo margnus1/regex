@@ -7,6 +7,10 @@ local
           | (EQUAL, GREATER) => GREATER
           | (EQUAL,    LESS) => LESS
           | (EQUAL,   EQUAL) => EQUAL
+    structure CharMap = BinaryMapFn(struct
+                                     type ord_key = Char.char
+                                     val compare = Char.compare
+                                     end)
 in
 structure TransMap = BinaryMapFn(
     struct
@@ -15,6 +19,64 @@ structure TransMap = BinaryMapFn(
     end)
 structure Set = IntBinarySet
 type dfa = (int * Set.set * int TransMap.map)
+
+(* PRE: (a valid dfa, _) *)
+(* POST: The state the DFA ends in when consuming the string. 
+   If any transition brings it to the garbage state, it will raise 
+   (state from which the garbage state was entered, input of that transition) *)
+exception NoMatch of char * int
+fun run start ((nos, finals, trans), string) =
+    (foldl (fn (c, s) => case TransMap.find (trans, (s, c)) of
+                             SOME s => s
+                           | NONE => raise NoMatch (c, s)) 
+           start
+           string)
+
+(* PRE: dfa is a valid dfa *)
+(* POST: wheter dfa accepts string *)
+fun accepts (dfa as (_, finals, _), string) =
+    Set.member (finals, run 1 (dfa, String.explode string))
+    handle NoMatch _ => false
+
+local
+    structure Map = IntBinaryMap
+    val implodeRev = implode o rev
+    fun combineExplode _ = raise Fail "This method will not be invoked"
+    fun singletonIntMap  (key, value) =     Map.insert     (Map.empty, key, value)
+    fun singletonCharMap (key, value) = CharMap.insert (CharMap.empty, key, value)
+    fun expandTransMap trans : int CharMap.map Map.map =
+        foldl (Map.unionWith (CharMap.unionWith combineExplode))
+              IntBinaryMap.empty
+              (map (fn ((f, c), t) =>
+                       singletonIntMap (f, singletonCharMap (c, t)))
+                   (TransMap.listItemsi trans))
+    open LazyList
+    type statestrings = int list * char lazyList option
+    fun mapConcat f l = concat (map f l)
+in
+(* TYPE: dfa -> string LazyList.lazyList *)
+(* POST: All strings accepted by dfa in lexographical order *)
+fun allStrings (nos, finals, trans) = 
+    let
+        val magicMap = expandTransMap trans
+        fun nextSteps ((char, newstate)::allt, thusfar) =
+            zCons ((newstate, char::thusfar), fn () => nextSteps (allt, thusfar))
+          | nextSteps ([], _) = zNil
+        fun nextStep (state, thusfar) =
+            nextSteps (CharMap.listItemsi (getOpt (Map.find (magicMap, state),
+                                                   CharMap.empty)), 
+                      thusfar)
+        fun moreSteps steps =
+            appendLazy (steps, fn () => moreSteps (mapConcat nextStep steps))
+        val walk = moreSteps (fromList [(1, [])])
+        fun onlyFinals (state, string) = 
+            if Set.member (finals, state)
+            then SOME (implodeRev string)
+            else NONE
+    in
+        filterMap onlyFinals walk
+    end
+end
 
 local
     structure SetTransMap = BinaryMapFn(struct 
@@ -29,10 +91,6 @@ local
                                    type ord_key = Set.set
                                    val compare = Set.compare
                                    end)
-    structure CharMap = BinaryMapFn(struct
-                                    type ord_key = Char.char
-                                    val compare = Char.compare
-                                    end)
 in
 
 (* POST: DFA with nondistinguishable states merged *)
